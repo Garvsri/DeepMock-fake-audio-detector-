@@ -1,9 +1,9 @@
-flask==3.0.3
-flask-cors==4.0.1
-numpy==1.26.4
-librosa==0.10.2
-soundfile==0.12.1
+flask
+flask-cors
+numpy
+librosa
+soundfile
 scikit-learn
-joblib==1.4.2
-requests==2.32.3
+joblib
+requests
 gunicorn
