@@ -1,9 +1,10 @@
 flask
 flask-cors
-numpy
-librosa
+numpy==1.23.5
+scipy==1.10.1
+librosa==0.10.0
 soundfile
-scikit-learn
+scikit-learn==1.2.2
 joblib
 requests
 gunicorn
