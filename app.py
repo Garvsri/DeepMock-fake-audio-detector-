@@ -3,6 +3,7 @@ Fake Audio & Link Detection System - Backend API
 Flask REST API for audio analysis and link scanning
 """
 
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
@@ -310,18 +311,11 @@ def batch_links():
 
     return jsonify({'success': True, 'results': results,
                     'timestamp': datetime.utcnow().isoformat()})
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "message": "Fake Audio & Link Detection API is running 🚀",
-        "endpoints": {
-            "health": "/health",
-            "audio_upload": "/analyze/audio",
-            "recorded_audio": "/analyze/recorded",
-            "link_analysis": "/analyze/batch-links"
-        }
-    })
+from flask import send_from_directory
 
+@app.route("/")
+def serve_frontend():
+    return send_from_directory(".", "index.html")
 
 import os
 if __name__ == "__main__":
