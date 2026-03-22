@@ -310,6 +310,17 @@ def batch_links():
 
     return jsonify({'success': True, 'results': results,
                     'timestamp': datetime.utcnow().isoformat()})
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "message": "Fake Audio & Link Detection API is running 🚀",
+        "endpoints": {
+            "health": "/health",
+            "audio_upload": "/analyze/audio",
+            "recorded_audio": "/analyze/recorded",
+            "link_analysis": "/analyze/batch-links"
+        }
+    })
 
 
 import os
