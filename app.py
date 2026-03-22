@@ -88,11 +88,16 @@ def extract_features(audio_path):
 
 
 def load_model():
-    """Load trained model and scaler."""
+    print("📂 Files in root:", os.listdir())
+    print("📂 Files in saved_model:", os.listdir("saved_model") if os.path.exists("saved_model") else "No folder")
+
     if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+        print("✅ Model files found")
         model  = joblib.load(MODEL_PATH)
         scaler = joblib.load(SCALER_PATH)
         return model, scaler
+
+    print("❌ Model files NOT found")
     return None, None
 
 
