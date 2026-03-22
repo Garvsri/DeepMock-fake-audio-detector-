@@ -486,7 +486,6 @@ header {
 
 <script>
 /* ── State ─────────────────────────────────────────── */
-const API_URL = "https://fake-audio-detector-production-b489.up.railway.app";
 let selectedFile = null;
 let mediaRecorder = null;
 let audioChunks  = [];
@@ -509,18 +508,29 @@ function switchTab(name) {
 }
 
 /* ── API Health ─────────────────────────────────────── */
+const API_URL = "https://fake-audio-detector-production-b489.up.railway.app";
+
 async function checkHealth() {
   try {
-    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    const r = await fetch(`${API_URL}/health`, {
+      signal: AbortSignal.timeout(3000)
+    });
+
     const d = await r.json();
+
     document.getElementById('apiStatus').textContent =
-      d.model_loaded ? 'Model Ready' : 'API Online (no model)';
+      d.model_loaded ? 'Model Ready ✅' : 'API Online (no model)';
+
     document.getElementById('apiStatus').style.color = 'var(--safe)';
-  } catch {
+
+  } catch (error) {
+    console.log(error);
+
     document.getElementById('apiStatus').textContent = 'API Offline (demo mode)';
     document.getElementById('apiStatus').style.color = 'var(--warn)';
   }
 }
+
 checkHealth();
 
 /* ── File Upload ────────────────────────────────────── */
