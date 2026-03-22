@@ -1,4 +1,4 @@
-# 🛡️ VoiceShield — Fake Audio & Link Detection System
+# 🛡️ DeepMock — Fake Audio & Link Detection System
 
 A full-stack AI security project that detects deepfake/synthetic audio and malicious URLs in real time.
 
