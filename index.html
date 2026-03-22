@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DeepMock — Fake Audio & Link Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+<style>
+/* ── Variables ──────────────────────────────────────── */
+:root {
+  --bg:       #03040a;
+  --surface:  #0c0e1a;
+  --card:     #111428;
+  --border:   #1e2244;
+  --accent:   #00d4ff;
+  --danger:   #ff4566;
+  --safe:     #00e878;
+  --warn:     #ffb03b;
+  --text:     #dde3ff;
+  --muted:    #5a6080;
+  --glow:     0 0 30px rgba(0,212,255,.15);
+}
+
+/* ── Reset ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Background mesh ────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 10% 20%, rgba(0,212,255,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 90% 80%, rgba(255,69,102,.05) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Layout ─────────────────────────────────────────── */
+.container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+/* ── Header ─────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 28px 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon {
+  width: 40px; height: 40px;
+  background: linear-gradient(135deg, var(--accent), #0068ff);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 0 20px rgba(0,212,255,.3);
+}
+.logo-text { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
+.logo-text span { color: var(--accent); }
+.status-pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 100px;
+  background: rgba(0,232,120,.08);
+  border: 1px solid rgba(0,232,120,.2);
+  font-size: .8rem; font-family: 'JetBrains Mono', monospace;
+  color: var(--safe);
+}
+.status-dot { width:8px; height:8px; border-radius:50%; background:var(--safe); animation: pulse 1.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+/* ── Hero ───────────────────────────────────────────── */
+.hero { text-align: center; padding: 60px 0 48px; }
+.hero-badge {
+  display: inline-block; margin-bottom: 20px;
+  padding: 5px 14px; border-radius: 100px;
+  background: rgba(0,212,255,.08); border: 1px solid rgba(0,212,255,.2);
+  font-size: .75rem; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); font-family: 'JetBrains Mono', monospace;
+}
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3.6rem);
+  font-weight: 800; line-height: 1.1;
+  letter-spacing: -1.5px;
+  background: linear-gradient(130deg, #fff 30%, var(--accent));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 18px;
+}
+.hero p { color: var(--muted); max-width: 520px; margin: 0 auto 40px; font-size: 1.05rem; line-height: 1.7; }
+
+/* ── Tabs ───────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 5px;
+  width: fit-content; margin: 0 auto 48px;
+}
+.tab {
+  padding: 10px 24px; border-radius: 10px;
+  cursor: pointer; font-size: .9rem; font-weight: 600;
+  color: var(--muted); transition: all .25s;
+  border: none; background: none; font-family: 'Syne', sans-serif;
+}
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--card); color: var(--accent); box-shadow: var(--glow); }
+
+/* ── Panels ─────────────────────────────────────────── */
+.panel { display: none; animation: fadeUp .35s ease; }
+.panel.active { display: block; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+
+/* ── Cards ──────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 40px rgba(0,0,0,.3);
+}
+.card-title {
+  font-size: 1rem; font-weight: 700; letter-spacing: .5px;
+  color: var(--text); margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+}
+.card-title .icon { font-size: 1.2rem; }
+
+/* ── Drop Zone ──────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 56px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .25s;
+  position: relative; overflow: hidden;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent);
+  background: rgba(0,212,255,.04);
+}
+.drop-zone .dz-icon { font-size: 2.8rem; margin-bottom: 16px; opacity: .6; }
+.drop-zone h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+.drop-zone p { color: var(--muted); font-size: .85rem; }
+.drop-zone input { position: absolute; inset:0; opacity:0; cursor:pointer; }
+
+/* ── Record Button ──────────────────────────────────── */
+.record-area { text-align: center; padding: 32px 0; }
+.record-btn {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--danger), #c0003a);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.2rem; margin: 0 auto 20px;
+  box-shadow: 0 0 0 0 rgba(255,69,102,.4);
+  transition: transform .2s;
+}
+.record-btn:hover { transform: scale(1.05); }
+.record-btn.recording { animation: recordPulse 1.2s ease-in-out infinite; }
+@keyframes recordPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255,69,102,.5); }
+  70%  { box-shadow: 0 0 0 22px rgba(255,69,102,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,69,102,0); }
+}
+.record-label { font-family: 'JetBrains Mono', monospace; font-size: .85rem; color: var(--muted); }
+.record-timer { font-size: 2rem; font-weight: 700; color: var(--danger); font-family:'JetBrains Mono',monospace; margin-bottom: 8px; display:none; }
+
+/* Waveform canvas */
+#waveCanvas {
+  width: 100%; height: 60px;
+  border-radius: 8px;
+  background: rgba(255,69,102,.04);
+  margin-top: 16px;
+  display: none;
+}
+
+/* ── Link input ─────────────────────────────────────── */
+.link-input-wrap { display: flex; gap: 10px; }
+.link-input {
+  flex: 1; padding: 14px 18px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; color: var(--text); font-size: .95rem;
+  font-family: 'JetBrains Mono', monospace;
+  transition: border-color .2s;
+  outline: none;
+}
+.link-input:focus { border-color: var(--accent); }
+.link-input::placeholder { color: var(--muted); }
+
+/* ── Buttons ─────────────────────────────────────────── */
+.btn {
+  padding: 13px 28px; border-radius: 12px; border: none;
+  font-family: 'Syne', sans-serif; font-size: .9rem; font-weight: 700;
+  cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: #33ddff; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,212,255,.25); }
+.btn-outline {
+  background: none; color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none !important; }
+
+/* ── Results ─────────────────────────────────────────── */
+.result-card {
+  border-radius: 16px; padding: 28px;
+  border: 1px solid; margin-top: 24px;
+  animation: fadeUp .3s ease;
+}
+.result-card.fake { border-color: rgba(255,69,102,.3); background: rgba(255,69,102,.06); }
+.result-card.real { border-color: rgba(0,232,120,.3); background: rgba(0,232,120,.06); }
+.result-card.medium { border-color: rgba(255,176,59,.3); background: rgba(255,176,59,.06); }
+
+.result-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.result-verdict {
+  font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px;
+}
+.verdict-fake { color: var(--danger); }
+.verdict-real { color: var(--safe); }
+.verdict-medium { color: var(--warn); }
+.result-icon { font-size: 2.2rem; }
+
+/* Confidence bar */
+.confidence-wrap { margin-bottom: 18px; }
+.confidence-label { display:flex; justify-content:space-between; margin-bottom:8px; font-size:.85rem; color:var(--muted); }
+.confidence-bar { height: 8px; border-radius: 100px; background: var(--surface); overflow: hidden; }
+.confidence-fill {
+  height: 100%; border-radius: 100px;
+  transition: width 1s cubic-bezier(.25,.8,.25,1);
+}
+.fill-fake { background: linear-gradient(90deg, var(--danger), #ff8fa3); }
+.fill-real { background: linear-gradient(90deg, var(--safe), #00ffaa); }
+.fill-medium { background: linear-gradient(90deg, var(--warn), #ffd080); }
+
+/* Feature grid */
+.feat-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px; margin-top: 16px;
+}
+.feat-item {
+  background: var(--surface); border-radius: 10px; padding: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.feat-item .feat-name { font-size: .68rem; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.feat-item .feat-val { font-size: .95rem; font-weight: 500; color: var(--text); }
+
+/* ── Loader ──────────────────────────────────────────── */
+.loader { display: none; text-align: center; padding: 40px 0; }
+.spinner {
+  width: 44px; height: 44px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+.loader p { color: var(--muted); font-size: .9rem; font-family: 'JetBrains Mono', monospace; }
+
+/* ── Stats bar ───────────────────────────────────────── */
+.stats-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  margin-bottom: 32px;
+}
+.stat-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px 24px;
+  text-align: center;
+}
+.stat-box .stat-num { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+.stat-box .stat-lbl { font-size: .78rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .8px; }
+
+/* ── History list ────────────────────────────────────── */
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface); border-radius: 12px;
+  border-left: 3px solid;
+  font-size: .88rem;
+}
+.history-item.fake { border-left-color: var(--danger); }
+.history-item.real { border-left-color: var(--safe); }
+.history-item.medium { border-left-color: var(--warn); }
+.history-meta { flex:1; }
+.history-name { font-weight: 600; margin-bottom: 2px; }
+.history-info { color: var(--muted); font-family:'JetBrains Mono',monospace; font-size:.78rem; }
+.history-badge {
+  padding: 4px 10px; border-radius: 100px; font-size: .75rem; font-weight: 700;
+}
+.badge-fake { background: rgba(255,69,102,.15); color: var(--danger); }
+.badge-real { background: rgba(0,232,120,.15); color: var(--safe); }
+.badge-medium { background: rgba(255,176,59,.15); color: var(--warn); }
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 600px) {
+  .stats-row { grid-template-columns: 1fr; }
+  .link-input-wrap { flex-direction: column; }
+  .hero h1 { font-size: 2rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div class="logo-text">Deep<span>Mock</span></div>
+    </div>
+    <div class="status-pill">
+      <div class="status-dot"></div>
+      <span id="apiStatus">Connecting…</span>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">AI · Security · Detection</div>
+    <h1>Detect Fake Audio &amp;<br>Malicious Links Instantly</h1>
+    <p>Upload audio, record live, or paste a URL. Our ML model flags deepfake speech and phishing links in real time.</p>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('upload')">📁 Upload Audio</button>
+      <button class="tab" onclick="switchTab('record')">🎙️ Record Live</button>
+      <button class="tab" onclick="switchTab('link')">🔗 Link Scan</button>
+      <button class="tab" onclick="switchTab('history')">📋 History</button>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-num" id="statTotal">0</div>
+      <div class="stat-lbl">Files Analysed</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="statFake" style="color:var(--danger)">0</div>
+      <div class="stat-lbl">Fakes Detected</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-num" id="statLinks" style="color:var(--warn)">0</div>
+      <div class="stat-lbl">Links Scanned</div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Upload ── -->
+  <div id="panel-upload" class="panel active">
+    <div class="card">
+      <div class="card-title"><span class="icon">📂</span> Upload Audio File</div>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="dz-icon">🎵</div>
+        <h3>Drop your audio file here</h3>
+        <p>Supports WAV, MP3, OGG, FLAC, M4A &nbsp;·&nbsp; Max 50 MB</p>
+        <input type="file" id="audioFile" accept=".wav,.mp3,.ogg,.flac,.m4a" />
+      </div>
+
+      <div id="selectedFile" style="display:none; margin-top:16px;">
+        <div class="history-item real" style="border-left-color:var(--accent)">
+          <span style="font-size:1.4rem">🎵</span>
+          <div class="history-meta">
+            <div class="history-name" id="selFileName">—</div>
+            <div class="history-info" id="selFileSize">—</div>
+          </div>
+          <button class="btn btn-outline" style="padding:8px 16px;font-size:.8rem" onclick="clearFile()">✕ Clear</button>
+        </div>
+      </div>
+
+      <div style="margin-top:20px; display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeUpload()" disabled>
+          🔍 Analyse Audio
+        </button>
+        <button class="btn btn-outline" onclick="document.getElementById('audioFile').click()">
+          📂 Browse
+        </button>
+      </div>
+    </div>
+
+    <!-- Loader -->
+    <div class="loader" id="uploadLoader">
+      <div class="spinner"></div>
+      <p>Extracting features &amp; running inference…</p>
+    </div>
+
+    <!-- Result -->
+    <div id="uploadResult"></div>
+  </div>
+
+  <!-- ── PANEL: Record ── -->
+  <div id="panel-record" class="panel">
+    <div class="card">
+      <div class="card-title"><span class="icon">🎙️</span> Live Judge Recording</div>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:28px;">
+        Press the button to start recording. The system will analyse the audio the moment you stop — no upload needed.
+      </p>
+
+      <div class="record-area">
+        <div class="record-timer" id="recTimer">00:00</div>
+        <button class="record-btn" id="recBtn" onclick="toggleRecord()">🎙️</button>
+        <div class="record-label" id="recLabel">Press to start recording</div>
+        <canvas id="waveCanvas"></canvas>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="submitRecBtn" onclick="submitRecording()" style="display:none;">
+          🔍 Analyse Recording
+        </button>
+        <button class="btn btn-outline" id="clearRecBtn" onclick="clearRecording()" style="display:none;">
+          🗑️ Discard
+        </button>
+      </div>
+    </div>
+
+    <div class="loader" id="recLoader">
+      <div class="spinner"></div>
+      <p>Analysing live recording…</p>
+    </div>
+    <div id="recResult"></div>
+  </div>
+
+  <!-- ── PANEL: Link ── -->
+  <div id="panel-link" class="panel">
+    <div class="card">
+      <div class="card-title"><span class="icon">🔗</span> URL / Link Scanner</div>
+      <p style="color:var(--muted); font-size:.9rem; margin-bottom:20px;">
+        Paste a URL to check for phishing indicators, suspicious patterns, and domain risk.
+      </p>
+
+      <div class="link-input-wrap">
+        <input type="url" class="link-input" id="linkInput"
+               placeholder="https://example.com/verify-account"
+               onkeydown="if(event.key==='Enter') analyzeLink()" />
+        <button class="btn btn-primary" onclick="analyzeLink()">🔍 Scan</button>
+      </div>
+
+      <div style="margin-top:12px;">
+        <p style="color:var(--muted);font-size:.8rem;margin-bottom:8px;">Quick test examples:</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button class="btn btn-outline" style="font-size:.78rem;padding:6px 14px"
+            onclick="setLink('https://paypa1.com/secure/login?verify=true')">Phishing sample</button>
+          <button class="btn btn-outline" style="font-size:.78rem;padding:6px 14px"
+            onclick="setLink('https://github.com/openai/whisper')">Safe sample</button>
+          <button class="btn btn-outline" style="font-size:.78rem;padding:6px 14px"
+            onclick="setLink('http://192.168.1.1/admin?free-win-prize')">High risk sample</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="loader" id="linkLoader">
+      <div class="spinner"></div>
+      <p>Scanning URL patterns…</p>
+    </div>
+    <div id="linkResult"></div>
+  </div>
+
+  <!-- ── PANEL: History ── -->
+  <div id="panel-history" class="panel">
+    <div class="card">
+      <div class="card-title"><span class="icon">📋</span> Analysis History</div>
+      <div id="historyList">
+        <p style="color:var(--muted);text-align:center;padding:40px 0;font-size:.9rem">
+          No analyses yet. Upload audio or scan a link to get started.
+        </p>
+      </div>
+      <div style="margin-top:20px;text-align:right;">
+        <button class="btn btn-outline" style="font-size:.8rem;padding:8px 16px" onclick="clearHistory()">🗑️ Clear History</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
+</div><!-- /container -->
+
+<script>
+/* ── State ─────────────────────────────────────────── */
+const API = 'http://localhost:5000';
+let selectedFile = null;
+let mediaRecorder = null;
+let audioChunks  = [];
+let recordBlob   = null;
+let timerInterval = null;
+let recSeconds   = 0;
+let animCtx      = null;
+let animFrame    = null;
+const history    = [];
+
+let stats = { total: 0, fakes: 0, links: 0 };
+
+/* ── Tab switching ──────────────────────────────────── */
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'history') renderHistory();
+}
+
+/* ── API Health ─────────────────────────────────────── */
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    const d = await r.json();
+    document.getElementById('apiStatus').textContent =
+      d.model_loaded ? 'Model Ready' : 'API Online (no model)';
+    document.getElementById('apiStatus').style.color = 'var(--safe)';
+  } catch {
+    document.getElementById('apiStatus').textContent = 'API Offline (demo mode)';
+    document.getElementById('apiStatus').style.color = 'var(--warn)';
+  }
+}
+checkHealth();
+
+/* ── File Upload ────────────────────────────────────── */
+const fileInput  = document.getElementById('audioFile');
+const dropZone   = document.getElementById('dropZone');
+
+fileInput.addEventListener('change', e => setFile(e.target.files[0]));
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()=> dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+
+function setFile(file) {
+  selectedFile = file;
+  document.getElementById('selFileName').textContent = file.name;
+  document.getElementById('selFileSize').textContent = `${(file.size/1024/1024).toFixed(2)} MB`;
+  document.getElementById('selectedFile').style.display = 'block';
+  document.getElementById('analyzeBtn').disabled = false;
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  document.getElementById('selectedFile').style.display = 'none';
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('uploadResult').innerHTML = '';
+}
+
+async function analyzeUpload() {
+  if (!selectedFile) return;
+  showLoader('uploadLoader'); clearResult('uploadResult');
+
+  try {
+    const fd = new FormData();
+    fd.append('audio', selectedFile);
+    const r = await fetch(`${API}/analyze/audio`, { method:'POST', body:fd });
+    const d = await r.json();
+    hideLoader('uploadLoader');
+
+    if (d.success) {
+      renderAudioResult('uploadResult', d.result, d.filename);
+      pushHistory({ type:'audio', name:d.filename, result:d.result, ts:new Date() });
+    } else {
+      showError('uploadResult', d.error || 'Analysis failed');
+    }
+  } catch (err) {
+    hideLoader('uploadLoader');
+    // Demo mode — simulate result when API is offline
+    const demo = simulateAudioResult();
+    renderAudioResult('uploadResult', demo, selectedFile.name);
+    pushHistory({ type:'audio', name:selectedFile.name, result:demo, ts:new Date() });
+  }
+}
+
+/* ── Recording ──────────────────────────────────────── */
+async function toggleRecord() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    stopRecord();
+  } else {
+    await startRecord();
+  }
+}
+
+async function startRecord() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recordBlob = new Blob(audioChunks, { type:'audio/webm' });
+      document.getElementById('submitRecBtn').style.display = 'flex';
+      document.getElementById('clearRecBtn').style.display  = 'flex';
+    };
+
+    mediaRecorder.start(100);
+    recSeconds = 0;
+    document.getElementById('recTimer').style.display = 'block';
+    document.getElementById('recBtn').classList.add('recording');
+    document.getElementById('recBtn').textContent = '⏹️';
+    document.getElementById('recLabel').textContent = 'Recording… (click to stop)';
+    document.getElementById('waveCanvas').style.display = 'block';
+    startTimer(); startWaveViz(stream);
+  } catch(e) {
+    alert('Microphone access denied. Please allow microphone permissions.');
+  }
+}
+
+function stopRecord() {
+  if (mediaRecorder) {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  }
+  clearInterval(timerInterval);
+  cancelAnimationFrame(animFrame);
+  document.getElementById('recBtn').classList.remove('recording');
+  document.getElementById('recBtn').textContent = '🎙️';
+  document.getElementById('recLabel').textContent = `Recorded ${fmtTime(recSeconds)} — ready to analyse`;
+}
+
+function startTimer() {
+  timerInterval = setInterval(() => {
+    recSeconds++;
+    document.getElementById('recTimer').textContent = fmtTime(recSeconds);
+  }, 1000);
+}
+
+function fmtTime(s) {
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+
+function startWaveViz(stream) {
+  const audioCtx = new AudioContext();
+  const src = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  const canvas = document.getElementById('waveCanvas');
+  const ctx = canvas.getContext('2d');
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+
+  function draw() {
+    animFrame = requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(buf);
+    canvas.width = canvas.offsetWidth;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ff4566';
+    ctx.beginPath();
+    const sliceW = canvas.width / buf.length;
+    let x = 0;
+    for (let i = 0; i < buf.length; i++) {
+      const v = buf[i] / 128;
+      const y = (v * canvas.height) / 2;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      x += sliceW;
+    }
+    ctx.stroke();
+  }
+  draw();
+}
+
+async function submitRecording() {
+  if (!recordBlob) return;
+  showLoader('recLoader'); clearResult('recResult');
+
+  try {
+    const fd = new FormData();
+    fd.append('audio', recordBlob, 'recording.webm');
+    const r = await fetch(`${API}/analyze/recorded`, { method:'POST', body:fd });
+    const d = await r.json();
+    hideLoader('recLoader');
+
+    if (d.success) {
+      renderAudioResult('recResult', d.result, 'Live Recording');
+      pushHistory({ type:'audio', name:'Live Recording', result:d.result, ts:new Date() });
+    } else {
+      showError('recResult', d.error);
+    }
+  } catch {
+    hideLoader('recLoader');
+    const demo = simulateAudioResult();
+    renderAudioResult('recResult', demo, 'Live Recording');
+    pushHistory({ type:'audio', name:'Live Recording', result:demo, ts:new Date() });
+  }
+}
+
+function clearRecording() {
+  recordBlob = null; audioChunks = [];
+  document.getElementById('submitRecBtn').style.display = 'none';
+  document.getElementById('clearRecBtn').style.display  = 'none';
+  document.getElementById('recTimer').style.display = 'none';
+  document.getElementById('waveCanvas').style.display = 'none';
+  document.getElementById('recLabel').textContent = 'Press to start recording';
+  clearResult('recResult');
+}
+
+/* ── Link Analysis ───────────────────────────────────── */
+function setLink(url) { document.getElementById('linkInput').value = url; }
+
+async function analyzeLink() {
+  const url = document.getElementById('linkInput').value.trim();
+  if (!url) return;
+  showLoader('linkLoader'); clearResult('linkResult');
+
+  try {
+    const r = await fetch(`${API}/analyze/link`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ url })
+    });
+    const d = await r.json();
+    hideLoader('linkLoader');
+    if (d.success) {
+      renderLinkResult('linkResult', d.result);
+      pushHistory({ type:'link', name:url, result:d.result, ts:new Date() });
+    } else {
+      showError('linkResult', d.error);
+    }
+  } catch {
+    hideLoader('linkLoader');
+    // Demo fallback
+    const demo = simulateLinkResult(url);
+    renderLinkResult('linkResult', demo);
+    pushHistory({ type:'link', name:url, result:demo, ts:new Date() });
+  }
+}
+
+/* ── Render helpers ─────────────────────────────────── */
+function renderAudioResult(targetId, result, name) {
+  const isFake = result.prediction === 'FAKE';
+  const cls    = isFake ? 'fake' : 'real';
+  const conf   = Math.round(result.confidence * 100);
+  const feats  = result.features || {};
+
+  const topFeats = ['f0_mean','f0_std','zcr_mean','rms_mean',
+                    'spectral_centroid_mean','voiced_ratio'].slice(0,6);
+
+  const featHTML = topFeats.map(k => {
+    const v = feats[k];
+    if (v === undefined) return '';
+    return `<div class="feat-item">
+      <div class="feat-name">${k.replace(/_/g,' ')}</div>
+      <div class="feat-val">${typeof v==='number' ? v.toFixed(3) : v}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById(targetId).innerHTML = `
+    <div class="result-card ${cls}">
+      <div class="result-header">
+        <div class="result-icon">${isFake ? '🔴' : '🟢'}</div>
+        <div>
+          <div class="result-verdict verdict-${cls}">
+            ${isFake ? 'FAKE / DEEPFAKE DETECTED' : 'AUTHENTIC AUDIO'}
+          </div>
+          <div style="color:var(--muted);font-size:.85rem;margin-top:4px">${name}</div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div style="font-size:1.4rem;font-weight:800;color:${isFake?'var(--danger)':'var(--safe)'}">${conf}%</div>
+          <div style="font-size:.75rem;color:var(--muted)">confidence</div>
+        </div>
+      </div>
+
+      <div class="confidence-wrap">
+        <div class="confidence-label">
+          <span>Detection confidence</span><span>${conf}%</span>
+        </div>
+        <div class="confidence-bar">
+          <div class="confidence-fill fill-${cls}" style="width:0%" id="confFill_${targetId}"></div>
+        </div>
+      </div>
+
+      <p style="font-size:.85rem;color:var(--muted);margin-bottom:12px">
+        Model: <code style="color:var(--text)">${result.model_used || 'ensemble'}</code>
+      </p>
+
+      ${featHTML ? `<div style="font-size:.8rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Key Features</div>
+      <div class="feat-grid">${featHTML}</div>` : ''}
+    </div>`;
+
+  setTimeout(() => {
+    const el = document.getElementById(`confFill_${targetId}`);
+    if (el) el.style.width = conf + '%';
+  }, 50);
+
+  stats.total++;
+  if (isFake) stats.fakes++;
+  updateStats();
+}
+
+function renderLinkResult(targetId, result) {
+  const risk = result.risk || 'LOW';
+  const cls  = risk === 'HIGH' ? 'fake' : (risk === 'MEDIUM' ? 'medium' : 'real');
+  const scoreColor = risk === 'HIGH' ? 'var(--danger)' : (risk === 'MEDIUM' ? 'var(--warn)' : 'var(--safe)');
+  const icon = risk === 'HIGH' ? '🚨' : (risk === 'MEDIUM' ? '⚠️' : '✅');
+  const factors = result.factors || [];
+
+  document.getElementById(targetId).innerHTML = `
+    <div class="result-card ${cls}">
+      <div class="result-header">
+        <div class="result-icon">${icon}</div>
+        <div>
+          <div class="result-verdict verdict-${cls === 'medium' ? 'medium' : cls}">
+            ${risk} RISK LINK
+          </div>
+          <div style="color:var(--muted);font-size:.85rem;margin-top:4px;word-break:break-all">
+            ${result.domain || result.url || ''}
+          </div>
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div style="font-size:1.4rem;font-weight:800;color:${scoreColor}">${result.score || 0}/100</div>
+          <div style="font-size:.75rem;color:var(--muted)">risk score</div>
+        </div>
+      </div>
+
+      <div class="confidence-wrap">
+        <div class="confidence-label"><span>Risk score</span><span>${result.score}/100</span></div>
+        <div class="confidence-bar">
+          <div class="confidence-fill fill-${cls}"
+               style="width:0%" id="linkFill_${targetId}"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Risk Factors</div>
+        ${factors.map(f => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.875rem">
+            <span style="color:${scoreColor}">▶</span> ${f}
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  setTimeout(() => {
+    const el = document.getElementById(`linkFill_${targetId}`);
+    if (el) el.style.width = Math.min(result.score, 100) + '%';
+  }, 50);
+
+  stats.links++;
+  updateStats();
+}
+
+/* ── History ────────────────────────────────────────── */
+function pushHistory(item) {
+  history.unshift(item);
+  if (history.length > 50) history.pop();
+}
+
+function renderHistory() {
+  if (history.length === 0) {
+    document.getElementById('historyList').innerHTML =
+      '<p style="color:var(--muted);text-align:center;padding:40px 0;font-size:.9rem">No analyses yet.</p>';
+    return;
+  }
+
+  document.getElementById('historyList').innerHTML = history.map(item => {
+    const isAudio = item.type === 'audio';
+    const pred = isAudio ? item.result.prediction : item.result.risk;
+    const cls = pred === 'FAKE' || pred === 'HIGH' ? 'fake' :
+                pred === 'MEDIUM' ? 'medium' : 'real';
+    const badgeCls = 'badge-' + cls;
+    const conf = isAudio
+      ? `${Math.round(item.result.confidence*100)}% confidence`
+      : `Risk score: ${item.result.score}/100`;
+
+    return `<div class="history-item ${cls}">
+      <span style="font-size:1.3rem">${isAudio ? '🎵' : '🔗'}</span>
+      <div class="history-meta">
+        <div class="history-name">${item.name}</div>
+        <div class="history-info">${conf} &nbsp;·&nbsp; ${item.ts.toLocaleTimeString()}</div>
+      </div>
+      <span class="history-badge ${badgeCls}">${pred}</span>
+    </div>`;
+  }).join('');
+}
+
+function clearHistory() {
+  history.length = 0;
+  stats = { total:0, fakes:0, links:0 };
+  updateStats();
+  renderHistory();
+}
+
+/* ── Utility ────────────────────────────────────────── */
+function showLoader(id)  { document.getElementById(id).style.display = 'block'; }
+function hideLoader(id)  { document.getElementById(id).style.display = 'none'; }
+function clearResult(id) { document.getElementById(id).innerHTML = ''; }
+function showError(id, msg) {
+  document.getElementById(id).innerHTML = `
+    <div class="result-card fake" style="text-align:center;padding:24px">
+      <div style="font-size:2rem;margin-bottom:12px">⚠️</div>
+      <div style="font-weight:700;color:var(--danger)">${msg}</div>
+    </div>`;
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = stats.total;
+  document.getElementById('statFake').textContent  = stats.fakes;
+  document.getElementById('statLinks').textContent = stats.links;
+}
+
+/* ── Demo / offline simulation ──────────────────────── */
+function simulateAudioResult() {
+  const isFake = Math.random() > 0.5;
+  return {
+    prediction: isFake ? 'FAKE' : 'REAL',
+    confidence: 0.6 + Math.random() * 0.35,
+    model_used: 'demo_heuristic',
+    features: {
+      f0_mean: +(150 + Math.random()*100).toFixed(2),
+      f0_std:  +(10 + Math.random()*40).toFixed(2),
+      zcr_mean:+(0.03 + Math.random()*0.08).toFixed(4),
+      rms_mean:+(0.01 + Math.random()*0.06).toFixed(4),
+      spectral_centroid_mean: +(1800 + Math.random()*1000).toFixed(1),
+      voiced_ratio: +(0.5 + Math.random()*0.4).toFixed(3),
+    }
+  };
+}
+
+function simulateLinkResult(url) {
+  const patterns = ['bit.ly','tinyurl','free','win','prize','urgent','verify','login',
+                    'paypal','bank','192.','@','http:'];
+  let score = 0;
+  const factors = [];
+  patterns.forEach(p => {
+    if (url.toLowerCase().includes(p)) { score += 18; factors.push(`Pattern detected: "${p}"`); }
+  });
+  if (!url.startsWith('https')) { score += 15; factors.push('No HTTPS'); }
+  score = Math.min(score, 100);
+  if (!factors.length) factors.push('No suspicious patterns detected');
+  const risk = score < 30 ? 'LOW' : score < 60 ? 'MEDIUM' : 'HIGH';
+  const domain = (() => { try { return new URL(url.startsWith('http') ? url : 'http://'+url).hostname; } catch { return url; } })();
+  return { risk, score, factors, domain, url };
+}
+</script>
+</body>
+</html>

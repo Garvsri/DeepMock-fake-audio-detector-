@@ -1,0 +1,7 @@
+archive/
+dataset/
+venv/
+*.wav
+*.flac
+__pycache__/
+saved_model/
