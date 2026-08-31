@@ -508,7 +508,7 @@ function switchTab(name) {
 }
 
 /* ── API Health ─────────────────────────────────────── */
-const API = "https://fake-audio-detector-production-b489.up.railway.app";
+const API = "http://127.0.0.1:10000";
 const API_URL = API;
 
 async function checkHealth() {
@@ -518,9 +518,8 @@ async function checkHealth() {
     });
 
     const d = await r.json();
-
     document.getElementById('apiStatus').textContent =
-      d.model_loaded ? 'Model Ready ✅' : 'API Online (no model)';
+    d.audio_model_loaded ? 'API Online · SpoofCNN Ready ✅' : 'API Online (no model)';
 
     document.getElementById('apiStatus').style.color = 'var(--safe)';
 
