@@ -718,32 +718,73 @@ function setLink(url) { document.getElementById('linkInput').value = url; }
 
 async function analyzeLink() {
   const url = document.getElementById('linkInput').value.trim();
-  if (!url) return;
-  showLoader('linkLoader'); clearResult('linkResult');
+
+  if (!url) {
+    showError('linkResult', 'Please enter a URL.');
+    return;
+  }
+
+  showLoader('linkLoader');
+  clearResult('linkResult');
 
   try {
-    const r = await fetch(`${API}/analyze/link`, {
+    const response = await fetch(`${API}/detect-url`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ url })
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: url
+      })
     });
-    const d = await r.json();
+
+    const data = await response.json();
+
     hideLoader('linkLoader');
-    if (d.success) {
-      renderLinkResult('linkResult', d.result);
-      pushHistory({ type:'link', name:url, result:d.result, ts:new Date() });
+
+    console.log("DeepMock URL Detection Response:", data);
+
+    if (data.success) {
+
+      // Backend returns:
+      // data.result.prediction
+      // data.result.risk
+      // data.result.risk_score
+      // data.result.models
+      // data.result.probabilities
+      // data.result.malicious_votes
+      // data.result.total_models
+
+      renderLinkResult('linkResult', data.result);
+
+      pushHistory({
+        type: 'link',
+        name: url,
+        result: data.result,
+        ts: new Date()
+      });
+
     } else {
-      showError('linkResult', d.error);
+
+      showError(
+        'linkResult',
+        data.error || 'URL detection failed.'
+      );
+
     }
-  } catch {
+
+  } catch (error) {
+
     hideLoader('linkLoader');
-    // Demo fallback
-    const demo = simulateLinkResult(url);
-    renderLinkResult('linkResult', demo);
-    pushHistory({ type:'link', name:url, result:demo, ts:new Date() });
+
+    console.error("URL detection error:", error);
+
+    showError(
+      'linkResult',
+      'Could not connect to DeepMock backend.'
+    );
   }
 }
-
 /* ── Render helpers ─────────────────────────────────── */
 function renderAudioResult(targetId, result, name) {
   const isFake = result.prediction === 'FAKE';
@@ -807,55 +848,707 @@ function renderAudioResult(targetId, result, name) {
 }
 
 function renderLinkResult(targetId, result) {
+
+  // ==============================
+  // NEW URL MODEL RESPONSE FORMAT
+  // ==============================
+
   const risk = result.risk || 'LOW';
-  const cls  = risk === 'HIGH' ? 'fake' : (risk === 'MEDIUM' ? 'medium' : 'real');
-  const scoreColor = risk === 'HIGH' ? 'var(--danger)' : (risk === 'MEDIUM' ? 'var(--warn)' : 'var(--safe)');
-  const icon = risk === 'HIGH' ? '🚨' : (risk === 'MEDIUM' ? '⚠️' : '✅');
-  const factors = result.factors || [];
+  const score = Number(result.risk_score ?? 0);
+  const prediction = result.prediction || 'SAFE';
+
+  // Model results
+  const models = result.models || {};
+  const probabilities = result.probabilities || {};
+
+  // ==============================
+  // UI COLORS / CLASSES
+  // ==============================
+
+  const cls =
+    risk === 'HIGH'
+      ? 'fake'
+      : (risk === 'MEDIUM' ? 'medium' : 'real');
+
+  const scoreColor =
+    risk === 'HIGH'
+      ? 'var(--danger)'
+      : (risk === 'MEDIUM' ? 'var(--warn)' : 'var(--safe)');
+
+  const icon =
+    risk === 'HIGH'
+      ? '🚨'
+      : (risk === 'MEDIUM' ? '⚠️' : '✅');
+
+  // ==============================
+  // URL
+  // ==============================
+
+  const url = result.url || '';
+
+  // ==============================
+  // MODEL STATUS
+  // ==============================
+
+  const decisionTree =
+    models.decision_tree || 'UNKNOWN';
+
+  const gradientBoosting =
+    models.gradient_boosting || 'UNKNOWN';
+
+  const xgboost =
+    models.xgboost || 'UNKNOWN';
+
+  // ==============================
+  // MODEL PROBABILITIES
+  // ==============================
+
+  const dtProbability =
+    Number(probabilities.decision_tree ?? 0);
+  
+
+  const gbProbability =
+    Number(probabilities.gradient_boosting ?? 0);
+
+  const xgbProbability =
+    Number(probabilities.xgboost ?? 0);
+
+    // ==============================
+  // CONVERT PROBABILITY TO %
+  // ==============================
+
+  function formatProbability(value) {
+    let probability = Number(value);
+
+    if (Number.isNaN(probability)) {
+      return '0.00%';
+    }
+
+    // Backend may return either 0–1 or 0–100
+    if (probability <= 1) {
+      probability *= 100;
+    }
+
+    return probability.toFixed(2) + '%';
+  }
+
+  // ==============================
+  // MALICIOUS VOTES
+  // ==============================
+
+  const maliciousVotes =
+    Number(result.malicious_votes ?? 0);
+
+  const totalModels =
+    Number(result.total_models ?? 3);
+
+  // ==============================
+  // RISK FACTORS
+  // ==============================
+
+  const factors = [];
+
+  if (maliciousVotes > 0) {
+    factors.push(
+      `${maliciousVotes}/${totalModels} ML models classified this URL as malicious`
+    );
+  }
+
+  if (risk === 'HIGH') {
+    factors.push(
+      'Ensemble model consensus indicates high risk'
+    );
+  }
+
+  if (risk === 'MEDIUM') {
+    factors.push(
+      'Ensemble model indicates moderate risk'
+    );
+  }
+
+  if (risk === 'LOW' && maliciousVotes === 0) {
+    factors.push(
+      'No suspicious patterns detected'
+    );
+  }
+
+  // ==============================
+  // MODEL ANALYSIS
+  // ==============================
+
+  const modelAnalysis = `
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      margin-bottom:12px;
+      font-size:.9rem;
+    ">
+      <span>🌳 Decision Tree</span>
+
+      <span style="
+        color:${decisionTree === 'MALICIOUS'
+          ? 'var(--danger)'
+          : 'var(--safe)'};
+        font-weight:700;
+      ">
+        ${decisionTree}
+        (${formatProbability(dtProbability)})
+      </span>
+    </div>
+
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      margin-bottom:12px;
+      font-size:.9rem;
+    ">
+      <span>📈 Gradient Boosting</span>
+
+      <span style="
+        color:${gradientBoosting === 'MALICIOUS'
+          ? 'var(--danger)'
+          : 'var(--safe)'};
+        font-weight:700;
+      ">
+        ${gradientBoosting}
+        (${formatProbability(gbProbability)})
+      </span>
+    </div>
+
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      margin-bottom:12px;
+      font-size:.9rem;
+    ">
+      <span>⚡ XGBoost</span>
+
+      <span style="
+        color:${xgboost === 'MALICIOUS'
+          ? 'var(--danger)'
+          : 'var(--safe)'};
+        font-weight:700;
+      ">
+        ${xgboost}
+        (${formatProbability(xgbProbability)})
+      </span>
+    </div>
+  `;
+
+  // ==============================
+  // RENDER RESULT
+  // ==============================
 
   document.getElementById(targetId).innerHTML = `
+
     <div class="result-card ${cls}">
+
+      <!-- HEADER -->
+
       <div class="result-header">
-        <div class="result-icon">${icon}</div>
+
+        <div class="result-icon">
+          ${icon}
+        </div>
+
         <div>
-          <div class="result-verdict verdict-${cls === 'medium' ? 'medium' : cls}">
+
+          <div class="
+            result-verdict
+            verdict-${cls === 'medium' ? 'medium' : cls}
+          ">
             ${risk} RISK LINK
           </div>
-          <div style="color:var(--muted);font-size:.85rem;margin-top:4px;word-break:break-all">
-            ${result.domain || result.url || ''}
+
+          <div style="
+            color:var(--muted);
+            font-size:.85rem;
+            margin-top:4px;
+            word-break:break-all;
+          ">
+            ${url}
           </div>
+
         </div>
-        <div style="margin-left:auto;text-align:right">
-          <div style="font-size:1.4rem;font-weight:800;color:${scoreColor}">${result.score || 0}/100</div>
-          <div style="font-size:.75rem;color:var(--muted)">risk score</div>
+
+        <div style="
+          margin-left:auto;
+          text-align:right;
+        ">
+
+          <div style="
+            font-size:1.4rem;
+            font-weight:800;
+            color:${scoreColor};
+          ">
+            ${score.toFixed(2)}/100
+          </div>
+
+          <div style="
+            font-size:.75rem;
+            color:var(--muted);
+          ">
+            risk score
+          </div>
+
         </div>
+
       </div>
+
+
+      <!-- RISK SCORE -->
 
       <div class="confidence-wrap">
-        <div class="confidence-label"><span>Risk score</span><span>${result.score}/100</span></div>
-        <div class="confidence-bar">
-          <div class="confidence-fill fill-${cls}"
-               style="width:0%" id="linkFill_${targetId}"></div>
+
+        <div class="confidence-label">
+
+          <span>Risk score</span>
+
+          <span>
+            ${score.toFixed(2)}/100
+          </span>
+
         </div>
+
+        <div class="confidence-bar">
+
+          <div
+            class="confidence-fill fill-${cls}"
+            style="width:0%"
+            id="linkFill_${targetId}">
+          </div>
+
+        </div>
+
       </div>
 
-      <div style="margin-top:14px">
-        <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Risk Factors</div>
-        ${factors.map(f => `
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.875rem">
-            <span style="color:${scoreColor}">▶</span> ${f}
-          </div>`).join('')}
+
+      <!-- ML MODEL ANALYSIS -->
+
+      <div style="
+        margin-top:22px;
+        border-top:1px solid rgba(255,255,255,.08);
+        padding-top:18px;
+      ">
+
+        <div style="
+          font-size:.8rem;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:1px;
+          margin-bottom:14px;
+        ">
+          ML Model Analysis
+        </div>
+
+        ${modelAnalysis}
+
+        <div style="
+          margin-top:14px;
+          padding:12px 16px;
+          border-radius:10px;
+          background:rgba(255,255,255,.04);
+          font-size:.9rem;
+        ">
+
+          <strong>
+            Ensemble Consensus:
+          </strong>
+
+          ${maliciousVotes}/${totalModels}
+          models detected this URL as malicious.
+
+        </div>
+
       </div>
-    </div>`;
+
+
+      <!-- RISK FACTORS -->
+
+      <div style="
+        margin-top:22px;
+      ">
+
+        <div style="
+          font-size:.8rem;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:1px;
+          margin-bottom:12px;
+        ">
+          Risk Factors
+        </div>
+
+        ${factors.map(f => `
+
+          <div style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            margin-bottom:9px;
+            font-size:.875rem;
+          ">
+
+            <span style="
+              color:${scoreColor};
+            ">
+              ▶
+            </span>
+
+            ${f}
+
+          </div>
+
+        `).join('')}
+
+      </div>
+
+    </div>
+  `;
+
+
+  // ==============================
+  // ANIMATE RISK BAR
+  // ==============================
 
   setTimeout(() => {
-    const el = document.getElementById(`linkFill_${targetId}`);
-    if (el) el.style.width = Math.min(result.score, 100) + '%';
+
+    const el = document.getElementById(
+      `linkFill_${targetId}`
+    );
+
+    if (el) {
+
+      el.style.width =
+        Math.min(
+          Math.max(score, 0),
+          100
+        ) + '%';
+
+    }
+
   }, 50);
+
+
+  // ==============================
+  // UPDATE STATISTICS
+  // ==============================
 
   stats.links++;
   updateStats();
 }
+
+  // ==============================
+  // VOTING
+  // ==============================
+
+  const maliciousVotes =
+    Number(result.malicious_votes ?? 0);
+
+  const totalModels =
+    Number(result.total_models ?? 3);
+
+  // ==============================
+  // RISK FACTORS
+  // ==============================
+
+  let factors = result.factors || [];
+
+  if (!factors.length) {
+
+    if (prediction === 'MALICIOUS') {
+
+      factors = [
+        `${maliciousVotes}/${totalModels} ML models classified this URL as malicious`,
+        'Suspicious URL structure detected',
+        'Ensemble model consensus indicates high risk'
+      ];
+
+    } else {
+
+      factors = [
+        'No suspicious patterns detected',
+        `${maliciousVotes}/${totalModels} ML models classified this URL as malicious`
+      ];
+
+    }
+  }
+
+  // ==============================
+  // CREATE RESULT CARD
+  // ==============================
+
+  document.getElementById(targetId).innerHTML = `
+
+    <div class="result-card ${cls}">
+
+      <!-- HEADER -->
+
+      <div class="result-header">
+
+        <div class="result-icon">
+          ${icon}
+        </div>
+
+        <div>
+
+          <div class="result-verdict verdict-${cls === 'medium' ? 'medium' : cls}">
+            ${risk} RISK LINK
+          </div>
+
+          <div style="
+            color:var(--muted);
+            font-size:.85rem;
+            margin-top:4px;
+            word-break:break-all
+          ">
+            ${url}
+          </div>
+
+        </div>
+
+        <div style="
+          margin-left:auto;
+          text-align:right
+        ">
+
+          <div style="
+            font-size:1.4rem;
+            font-weight:800;
+            color:${scoreColor}
+          ">
+            ${score.toFixed(2)}/100
+          </div>
+
+          <div style="
+            font-size:.75rem;
+            color:var(--muted)
+          ">
+            risk score
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- RISK SCORE -->
+
+      <div class="confidence-wrap">
+
+        <div class="confidence-label">
+
+          <span>Risk score</span>
+
+          <span>
+            ${score.toFixed(2)}/100
+          </span>
+
+        </div>
+
+        <div class="confidence-bar">
+
+          <div
+            class="confidence-fill fill-${cls}"
+            style="width:0%"
+            id="linkFill_${targetId}">
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- MODEL CONSENSUS -->
+
+      <div style="
+        margin-top:18px;
+        padding-top:14px;
+        border-top:1px solid rgba(255,255,255,.08)
+      ">
+
+        <div style="
+          font-size:.8rem;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:1px;
+          margin-bottom:12px
+        ">
+          ML Model Analysis
+        </div>
+
+
+        <!-- DECISION TREE -->
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:10px;
+          font-size:.875rem
+        ">
+
+          <span>
+            🌳 Decision Tree
+          </span>
+
+          <span style="
+            font-weight:700;
+            color:${decisionTree === 'MALICIOUS'
+              ? 'var(--danger)'
+              : 'var(--safe)'}
+          ">
+            ${decisionTree}
+            (${dtProbability.toFixed(2)}%)
+          </span>
+
+        </div>
+
+
+        <!-- GRADIENT BOOSTING -->
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:10px;
+          font-size:.875rem
+        ">
+
+          <span>
+            📈 Gradient Boosting
+          </span>
+
+          <span style="
+            font-weight:700;
+            color:${gradientBoosting === 'MALICIOUS'
+              ? 'var(--danger)'
+              : 'var(--safe)'}
+          ">
+            ${gradientBoosting}
+            (${gbProbability.toFixed(2)}%)
+          </span>
+
+        </div>
+
+
+        <!-- XGBOOST -->
+
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          margin-bottom:10px;
+          font-size:.875rem
+        ">
+
+          <span>
+            ⚡ XGBoost
+          </span>
+
+          <span style="
+            font-weight:700;
+            color:${xgboost === 'MALICIOUS'
+              ? 'var(--danger)'
+              : 'var(--safe)'}
+          ">
+            ${xgboost}
+            (${xgbProbability.toFixed(2)}%)
+          </span>
+
+        </div>
+
+
+        <!-- VOTING -->
+
+        <div style="
+          margin-top:14px;
+          padding:10px 12px;
+          border-radius:8px;
+          background:rgba(255,255,255,.04);
+          font-size:.85rem
+        ">
+
+          <strong>
+            Ensemble Consensus:
+          </strong>
+
+          ${maliciousVotes}/${totalModels}
+          models detected this URL as malicious.
+
+        </div>
+
+      </div>
+
+
+      <!-- RISK FACTORS -->
+
+      <div style="margin-top:18px">
+
+        <div style="
+          font-size:.8rem;
+          color:var(--muted);
+          text-transform:uppercase;
+          letter-spacing:1px;
+          margin-bottom:10px
+        ">
+          Risk Factors
+        </div>
+
+        ${factors.map(f => `
+
+          <div style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            margin-bottom:8px;
+            font-size:.875rem
+          ">
+
+            <span style="
+              color:${scoreColor}
+            ">
+              ▶
+            </span>
+
+            ${f}
+
+          </div>
+
+        `).join('')}
+
+      </div>
+
+    </div>
+  `;
+
+
+  // ==============================
+  // ANIMATE RISK BAR
+  // ==============================
+
+  setTimeout(() => {
+
+    const el =
+      document.getElementById(`linkFill_${targetId}`);
+
+    if (el) {
+
+      el.style.width =
+        Math.min(Math.max(score, 0), 100) + '%';
+
+    }
+
+  }, 50);
+
+
+  // ==============================
+  // UPDATE STATISTICS
+  // ==============================
+
+  stats.links++;
+  updateStats();
+
 
 /* ── History ────────────────────────────────────────── */
 function pushHistory(item) {
