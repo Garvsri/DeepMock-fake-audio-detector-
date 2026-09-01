@@ -1,0 +1,21 @@
+{
+    "dataset": "PhiUSIIL Phishing URL Dataset",
+    "total_samples": 235795,
+    "number_of_features": 41,
+    "feature_type": "URL-only lexical and structural features",
+    "original_label_mapping": {
+        "0": "phishing",
+        "1": "legitimate"
+    },
+    "model_label_mapping": {
+        "0": "SAFE",
+        "1": "MALICIOUS"
+    },
+    "test_size": 0.2,
+    "random_state": 42,
+    "models": [
+        "Decision Tree",
+        "Gradient Boosting",
+        "XGBoost"
+    ]
+}

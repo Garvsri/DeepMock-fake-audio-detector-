@@ -30,6 +30,7 @@ import torch.nn.functional as F
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from url_detector import predict_url
 
 warnings.filterwarnings("ignore")
 
@@ -725,7 +726,39 @@ def predict_audio(audio_path):
 # ============================================================
 # URL / LINK ANALYSIS
 # ============================================================
+@app.route("/detect-url", methods=["POST"])
+def detect_url():
+    try:
+        data = request.get_json()
 
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "No JSON data received"
+            }), 400
+
+        url = data.get("url", "").strip()
+
+        if not url:
+            return jsonify({
+                "success": False,
+                "error": "Please enter a URL"
+            }), 400
+
+        result = predict_url(url)
+
+        return jsonify({
+            "success": True,
+            "result": result
+        })
+
+    except Exception as e:
+        print("URL detection error:", e)
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 SUSPICIOUS_PATTERNS = [
 
     r'bit\.ly',
@@ -959,11 +992,25 @@ def health():
 
         'status': 'ok',
 
+        # Audio detection
         'audio_model_loaded':
             cnn_model is not None,
 
         'audio_model':
             'SpoofCNN',
+
+        # URL detection
+        'url_model_loaded':
+            True,
+
+        'url_models': [
+            'Decision Tree',
+            'Gradient Boosting',
+            'XGBoost'
+        ],
+
+        'url_ensemble':
+            'Majority Voting',
 
         'device':
             str(DEVICE),
@@ -971,7 +1018,6 @@ def health():
         'timestamp':
             datetime.utcnow().isoformat()
     })
-
 
 # ============================================================
 # AUDIO UPLOAD ANALYSIS
@@ -1307,9 +1353,8 @@ def analyze_recorded():
 
                     pass
 
-
 # ============================================================
-# BATCH URL ANALYSIS
+# BATCH URL ANALYSIS - ML ENSEMBLE
 # ============================================================
 
 @app.route(
@@ -1317,6 +1362,71 @@ def analyze_recorded():
     methods=['POST']
 )
 def batch_links():
+
+    """
+    Analyze multiple URLs using:
+
+    1. Decision Tree
+    2. Gradient Boosting
+    3. XGBoost
+
+    Final result is produced using
+    majority voting.
+    """
+
+    data = request.get_json(silent=True)
+
+    if not data or 'urls' not in data:
+
+        return jsonify({
+            'success': False,
+            'error': 'No URLs provided'
+        }), 400
+
+    urls = data['urls']
+
+    if not isinstance(urls, list):
+
+        return jsonify({
+            'success': False,
+            'error': 'URLs must be provided as a list'
+        }), 400
+
+    results = []
+
+    for url in urls[:20]:
+
+        url = str(url).strip()
+
+        if not url:
+            continue
+
+        try:
+
+            result = predict_url(url)
+
+            results.append(result)
+
+        except Exception as e:
+
+            results.append({
+                'url': url,
+                'prediction': 'ERROR',
+                'error': str(e)
+            })
+
+    return jsonify({
+
+        'success': True,
+
+        'results': results,
+
+        'total_urls': len(results),
+
+        'timestamp':
+            datetime.utcnow().isoformat()
+
+    })
 
     """
     Analyze multiple URLs.
